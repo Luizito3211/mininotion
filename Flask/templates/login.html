@@ -104,7 +104,9 @@
           }
 
           showMessage(data.message || "Autenticado com sucesso.");
-          window.location.href = "/";
+          if (data.redirect !== false) {
+            window.location.href = "/";
+          }
         } catch (error) {
           showMessage("Erro de conexao com o servidor.", true);
         }
