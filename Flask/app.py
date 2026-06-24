@@ -6,13 +6,15 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError(
@@ -20,6 +22,9 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase_admin = (
+    create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_SERVICE_KEY else None
+)
 
 
 def user_supabase_client():
@@ -32,14 +37,25 @@ def user_supabase_client():
     return client
 
 
-def require_user_supabase_client():
-    client = user_supabase_client()
+def require_notes_client():
     user_id = current_user_id()
+    client = supabase_admin or user_supabase_client()
 
     if not client or not user_id:
         return None, None, (jsonify({"error": "Usuario nao autenticado."}), 401)
 
     return client, user_id, None
+
+
+def error_details(exc):
+    details = str(exc)
+    code = getattr(exc, "code", None)
+    message = getattr(exc, "message", None)
+
+    if message and message not in details:
+        details = f"{message} ({details})"
+
+    return {"detalhes": details, "codigo": code}
 
 
 def current_user_id():
@@ -169,7 +185,7 @@ def logout():
 @login_required
 def list_notes():
     try:
-        db, user_id, auth_error = require_user_supabase_client()
+        db, user_id, auth_error = require_notes_client()
         if auth_error:
             return auth_error
 
@@ -182,14 +198,14 @@ def list_notes():
         )
         return jsonify({"notes": response.data or []})
     except Exception as e:
-        return jsonify({"error": "Erro ao buscar notas.", "detalhes": str(e)}), 500
+        return jsonify({"error": "Erro ao buscar notas.", **error_details(e)}), 500
 
 
 @app.route("/api/notes", methods=["POST"])
 @login_required
 def create_note():
     try:
-        db, user_id, auth_error = require_user_supabase_client()
+        db, user_id, auth_error = require_notes_client()
         if auth_error:
             return auth_error
 
@@ -210,14 +226,26 @@ def create_note():
         created_note = first_response_row(response.data)
 
         if not created_note:
-            return jsonify({"error": "Nota criada, mas o Supabase nao retornou os dados."}), 500
+            return (
+                jsonify(
+                    {
+                        "error": "Nota criada, mas o Supabase nao retornou os dados.",
+                        "hint": "Verifique se existe uma policy SELECT para o usuario autenticado.",
+                    }
+                ),
+                500,
+            )
 
         return jsonify({"success": True, "note": created_note, "data": response.data}), 201
     except Exception as exc:
         return jsonify(
             {
                 "error": "Erro interno no Flask ao falar com o Supabase",
-                "detalhes": str(exc),
+                **error_details(exc),
+                "hint": (
+                    "Se aparecer row-level security, configure SUPABASE_SERVICE_KEY no .env "
+                    "ou rode novamente o SQL das policies no Supabase."
+                ),
             }
         ), 500
 
@@ -226,7 +254,7 @@ def create_note():
 @login_required
 def update_note(note_id):
     try:
-        db, user_id, auth_error = require_user_supabase_client()
+        db, user_id, auth_error = require_notes_client()
         if auth_error:
             return auth_error
 
@@ -252,14 +280,14 @@ def update_note(note_id):
 
         return jsonify({"success": True, "data": response.data}), 200
     except Exception as e:
-        return jsonify({"error": "Erro ao atualizar nota.", "detalhes": str(e)}), 500
+        return jsonify({"error": "Erro ao atualizar nota.", **error_details(e)}), 500
 
 
 @app.delete("/api/notes/<note_id>")
 @login_required
 def delete_note(note_id):
     try:
-        db, user_id, auth_error = require_user_supabase_client()
+        db, user_id, auth_error = require_notes_client()
         if auth_error:
             return auth_error
 
@@ -276,7 +304,7 @@ def delete_note(note_id):
 
         return jsonify({"success": True, "data": response.data}), 200
     except Exception as e:
-        return jsonify({"error": "Erro ao deletar nota.", "detalhes": str(e)}), 500
+        return jsonify({"error": "Erro ao deletar nota.", **error_details(e)}), 500
 
 
 if __name__ == "__main__":

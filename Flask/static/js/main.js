@@ -116,7 +116,11 @@ async function createNote() {
     if (!response.ok) {
       const errorData = await response.json();
       console.error("Erro detalhado do Backend:", errorData);
-      alert("Erro ao criar nota: " + (errorData.detalhes || errorData.error));
+      alert(
+        "Erro ao criar nota: " +
+          (errorData.detalhes || errorData.error) +
+          (errorData.hint ? "\n\n" + errorData.hint : "")
+      );
       return;
     }
 
