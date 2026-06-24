@@ -32,6 +32,16 @@ def user_supabase_client():
     return client
 
 
+def require_user_supabase_client():
+    client = user_supabase_client()
+    user_id = current_user_id()
+
+    if not client or not user_id:
+        return None, None, (jsonify({"error": "Usuario nao autenticado."}), 401)
+
+    return client, user_id, None
+
+
 def current_user_id():
     return session.get("user_id")
 
@@ -94,6 +104,9 @@ def index():
 
 @app.get("/login")
 def login_page():
+    if current_user_id():
+        return redirect(url_for("index"))
+
     return render_template("login.html")
 
 
@@ -110,13 +123,15 @@ def register():
                 jsonify(
                     {
                         "message": "Cadastro criado. Confirme seu email para entrar.",
+                        "requires_confirmation": True,
+                        "redirect": False,
                         "user": getattr(response.user, "id", None),
                     }
                 ),
                 201,
             )
 
-        return jsonify({"message": "Usuario cadastrado com sucesso."}), 201
+        return jsonify({"message": "Usuario cadastrado com sucesso.", "redirect": True}), 201
     except Exception as exc:
         return jsonify({"error": "Erro ao cadastrar usuario.", "details": str(exc)}), 400
 
@@ -132,7 +147,7 @@ def login():
         if not store_auth_session(response):
             return jsonify({"error": "Credenciais invalidas."}), 401
 
-        return jsonify({"message": "Login realizado com sucesso."})
+        return jsonify({"message": "Login realizado com sucesso.", "redirect": True})
     except Exception as exc:
         return jsonify({"error": "Erro ao autenticar usuario.", "details": str(exc)}), 401
 
@@ -147,12 +162,12 @@ def logout():
 @login_required
 def list_notes():
     try:
-        user_id = session.get("user_id")
-        if not user_id:
-            return jsonify({"error": "Usuario nao autenticado na sessao do Flask"}), 401
+        db, user_id, auth_error = require_user_supabase_client()
+        if auth_error:
+            return auth_error
 
         response = (
-            supabase.table("notes")
+            db.table("notes")
             .select("*")
             .eq("user_id", user_id)
             .order("updated_at", desc=True)
@@ -164,11 +179,12 @@ def list_notes():
 
 
 @app.route("/api/notes", methods=["POST"])
+@login_required
 def create_note():
     try:
-        user_id = session.get("user_id")
-        if not user_id:
-            return jsonify({"error": "Usuario nao autenticado na sessao do Flask"}), 401
+        db, user_id, auth_error = require_user_supabase_client()
+        if auth_error:
+            return auth_error
 
         data = request.get_json()
         if not data:
@@ -183,7 +199,7 @@ def create_note():
             "user_id": user_id,
         }
 
-        response = supabase.table("notes").insert(nova_nota).execute()
+        response = db.table("notes").insert(nova_nota).execute()
 
         return jsonify({"success": True, "data": response.data}), 201
     except Exception as exc:
@@ -199,9 +215,9 @@ def create_note():
 @login_required
 def update_note(note_id):
     try:
-        user_id = session.get("user_id")
-        if not user_id:
-            return jsonify({"error": "Usuario nao autenticado na sessao do Flask"}), 401
+        db, user_id, auth_error = require_user_supabase_client()
+        if auth_error:
+            return auth_error
 
         data = request.get_json()
         if not data:
@@ -213,7 +229,7 @@ def update_note(note_id):
         }
 
         response = (
-            supabase.table("notes")
+            db.table("notes")
             .update(updates)
             .eq("id", note_id)
             .eq("user_id", user_id)
@@ -232,12 +248,12 @@ def update_note(note_id):
 @login_required
 def delete_note(note_id):
     try:
-        user_id = session.get("user_id")
-        if not user_id:
-            return jsonify({"error": "Usuario nao autenticado na sessao do Flask"}), 401
+        db, user_id, auth_error = require_user_supabase_client()
+        if auth_error:
+            return auth_error
 
         response = (
-            supabase.table("notes")
+            db.table("notes")
             .delete()
             .eq("id", note_id)
             .eq("user_id", user_id)
