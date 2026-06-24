@@ -130,6 +130,7 @@ async function createNote() {
       titleInput.select();
     }
   } catch (error) {
+    console.error("Erro inesperado ao criar nota:", error);
     setStatus(error.message);
   }
 }

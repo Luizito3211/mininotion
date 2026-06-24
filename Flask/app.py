@@ -84,6 +84,13 @@ def store_auth_session(auth_response):
     return True
 
 
+def first_response_row(data):
+    if isinstance(data, list):
+        return data[0] if data else None
+
+    return data
+
+
 def note_belongs_to_user(note_id, user_id):
     response = (
         supabase.table("notes")
@@ -199,9 +206,13 @@ def create_note():
             "user_id": user_id,
         }
 
-        response = db.table("notes").insert(nova_nota).execute()
+        response = db.table("notes").insert(nova_nota).select("*").execute()
+        created_note = first_response_row(response.data)
 
-        return jsonify({"success": True, "data": response.data}), 201
+        if not created_note:
+            return jsonify({"error": "Nota criada, mas o Supabase nao retornou os dados."}), 500
+
+        return jsonify({"success": True, "note": created_note, "data": response.data}), 201
     except Exception as exc:
         return jsonify(
             {
