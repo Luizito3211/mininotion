@@ -16,4 +16,4 @@ No Supabase, rode o SQL de `Flask/supabase_schema.sql` em **SQL Editor** para cr
 
 Os cadastros de email e senha ficam no **Supabase Auth**, na tabela interna `auth.users`. Essa tabela nao aparece como uma tabela publica comum do seu app; por isso as notas usam `user_id` apontando para `auth.users(id)`.
 
-Se a confirmacao de email estiver ativada em **Authentication > Providers > Email**, o usuario precisa confirmar o email antes de conseguir fazer login.
+Para entrar direto depois do cadastro, desative a confirmacao de email em **Authentication > Providers > Email** no painel do Supabase.

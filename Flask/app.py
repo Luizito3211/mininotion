@@ -122,16 +122,16 @@ def register():
             return (
                 jsonify(
                     {
-                        "message": "Cadastro criado. Confirme seu email para entrar.",
-                        "requires_confirmation": True,
-                        "redirect": False,
-                        "user": getattr(response.user, "id", None),
+                        "error": (
+                            "Cadastro criado, mas o Supabase nao liberou login automatico. "
+                            "Desative a confirmacao de email em Authentication > Providers > Email."
+                        ),
                     }
                 ),
-                201,
+                400,
             )
 
-        return jsonify({"message": "Usuario cadastrado com sucesso.", "redirect": True}), 201
+        return jsonify({"message": "Usuario cadastrado e logado com sucesso."}), 201
     except Exception as exc:
         return jsonify({"error": "Erro ao cadastrar usuario.", "details": str(exc)}), 400
 
@@ -147,7 +147,7 @@ def login():
         if not store_auth_session(response):
             return jsonify({"error": "Credenciais invalidas."}), 401
 
-        return jsonify({"message": "Login realizado com sucesso.", "redirect": True})
+        return jsonify({"message": "Login realizado com sucesso."})
     except Exception as exc:
         return jsonify({"error": "Erro ao autenticar usuario.", "details": str(exc)}), 401
 
