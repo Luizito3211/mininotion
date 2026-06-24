@@ -1,4 +1,5 @@
 import os
+import uuid
 from functools import wraps
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
@@ -217,13 +218,14 @@ def create_note():
         content = data.get("content", "")
 
         nova_nota = {
+            "id": str(uuid.uuid4()),
             "title": title,
             "content": content,
             "user_id": user_id,
         }
 
-        response = db.table("notes").insert(nova_nota).select("*").execute()
-        created_note = first_response_row(response.data)
+        response = db.table("notes").insert(nova_nota).execute()
+        created_note = first_response_row(response.data) or nova_nota
 
         if not created_note:
             return (
@@ -243,8 +245,8 @@ def create_note():
                 "error": "Erro interno no Flask ao falar com o Supabase",
                 **error_details(exc),
                 "hint": (
-                    "Se aparecer row-level security, configure SUPABASE_SERVICE_KEY no .env "
-                    "ou rode novamente o SQL das policies no Supabase."
+                    "Se aparecer row-level security, configure SUPABASE_SERVICE_KEY no .env. "
+                    "Se aparecer coluna/tabela inexistente, rode novamente o SQL no Supabase."
                 ),
             }
         ), 500
